@@ -1,12 +1,9 @@
 package com.rokode.geofece_testing
 
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.awareness.Awareness;
@@ -31,6 +28,8 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.*
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.CircleOptions
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
@@ -39,14 +38,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
     // The fence key is how callback code determines which fence fired.
     val FENCE_KEY = "fence_key"
     private val TAG = "MapsActivity"
-    private var mPendingIntent: PendingIntent? = null
-    private var mFenceReceiver: FenceReceiver? = null
     private var googleApiClient : GoogleApiClient? = null
     private var geofencingClient : GeofencingClient? = null
     // The intent action which will be fired when your fence is triggered.
     val FENCE_RECEIVER_ACTION = BuildConfig.APPLICATION_ID + "FENCE_RECEIVER_ACTION"
     val MY_PERMISSION_LOCATION = 1
-    val FENCE_RADIO = 2
+    val FENCE_RADIO = 50
     val FENCE_LAT = 20.6565374
     val FENCE_LON = -103.3915136
 
@@ -59,37 +56,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        val intent = Intent(FENCE_RECEIVER_ACTION)
-        mPendingIntent = PendingIntent.getBroadcast(this, 0, intent, 0);
-
         //init google apli client
         googleApiClient = GoogleApiClient.Builder(applicationContext)
             .addApi(Awareness.getSnapshotClient(applicationContext).api)
             .addApi(Awareness.getFenceClient(applicationContext).api)
             .addConnectionCallbacks(this)
             .addOnConnectionFailedListener(this)
+            .enableAutoManage(this,this)
             .build()
-
-
-
-
 
         val startBtn : Button = findViewById(R.id.startBtn)
         startBtn.setOnClickListener { _ ->
             //getHeadphoneState()
-            startFence()
+            //startFence()
         }
-        val mFenceReceiver = FenceReceiver()
-        registerReceiver(mFenceReceiver, IntentFilter(FENCE_RECEIVER_ACTION))
-
     }
 
     private fun startFence() {
         if(checkAndRequestLocationPermissions()){
             //permissions conceded!
             //1. init GeoFence api
-            var geofenceList : ArrayList<Geofence> = ArrayList();
-            geofencingClient = LocationServices.getGeofencingClient(applicationContext);
+            val geofenceList : ArrayList<Geofence> = ArrayList();
+            geofencingClient = LocationServices.getGeofencingClient(this)
 
             //2. Create geofence objects
             geofenceList.add(Geofence.Builder()
@@ -98,13 +86,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
                 .setRequestId(FENCE_KEY)
                 // Set the circular region of this geofence.
                 .setCircularRegion(
-                    20.6565374,
-                    -103.3915136,
-                    5F
+                    FENCE_LAT,
+                    FENCE_LON,
+                    FENCE_RADIO.toFloat()
                 )
                 // Set the expiration duration of the geofence. This geofence gets automatically
                 // removed after this period of time.
-                .setExpirationDuration(50000)
+                .setExpirationDuration(Geofence.NEVER_EXPIRE)
 
                 // Set the transition types of interest. Alerts are only generated for these
                 // transition. We track entry and exit transitions in this sample.
@@ -113,7 +101,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
                 .build())
 
             //3. Specify geofences and initial triggers
-            var geofenceRequest : GeofencingRequest
+            val geofenceRequest : GeofencingRequest
             geofenceRequest = GeofencingRequest.Builder().apply {
                 setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
                 addGeofences(geofenceList)
@@ -121,7 +109,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
 
 
             //4. Define an intent for geofence transitions
-            var pendientIntent : PendingIntent;
+            val pendientIntent : PendingIntent;
             // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
             // addGeofences() and removeGeofences().
             pendientIntent =
@@ -140,13 +128,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
 
                 }
             }
+
         }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-        val fencePosition : LatLng = LatLng(FENCE_LAT,FENCE_LON);
-        drawCircle(fencePosition)
+        googleApiClient?.connect()
 
     }
 
@@ -172,23 +160,26 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
     }
 
     override fun onResume() {
-        if (mFenceReceiver != null) {
-            unregisterReceiver(mFenceReceiver);
-            mFenceReceiver = null;
-        }
         super.onResume()
     }
 
     override fun onStop() {
-        if (mFenceReceiver != null) {
-            unregisterReceiver(mFenceReceiver);
-            mFenceReceiver = null;
-        }
         super.onStop()
     }
 
     override fun onConnected(p0: Bundle?) {
         Log.i(TAG, "GoogleApiClient onConnected.")
+        val fencePosition = LatLng(FENCE_LAT,FENCE_LON)
+        val cameraUpdate : CameraUpdate = CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(fencePosition)
+            .zoom(30f)
+            .build())
+        mMap.moveCamera(cameraUpdate)
+        if(checkAndRequestLocationPermissions()){
+            mMap.isIndoorEnabled = true
+            mMap.isMyLocationEnabled = true
+            startFence()
+        }
+        drawCircle(fencePosition)
     }
 
     override fun onConnectionSuspended(p0: Int) {
@@ -275,10 +266,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
     private fun checkAndRequestLocationPermissions(): Boolean {
         var isPermissionsGaranted = false;
 
-        if (ContextCompat.checkSelfPermission(
-                this,
-                ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
+        if (ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, ACCESS_FINE_LOCATION)) {
                 Log.i(TAG, "Permission previously denied and app shouldn't ask again.  Skipping" + " weather snapshot.")
                 requestPermissions()
@@ -297,7 +286,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
     private fun requestPermissions() {
         ActivityCompat.requestPermissions(
             this,
-            arrayOf(ACCESS_FINE_LOCATION),
+            arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION),
             MY_PERMISSION_LOCATION
         )
     }

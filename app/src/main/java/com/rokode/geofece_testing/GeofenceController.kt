@@ -1,21 +1,24 @@
 package com.rokode.geofece_testing
 
 import android.app.IntentService
-import android.app.Service
 import android.content.ContentValues.TAG
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import com.google.android.gms.location.Geofence
-import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingEvent
 
 
-class GeofenceController(name: String?) : IntentService(name) {
+class GeofenceController(name: String?) : IntentService("GeoFenceService") {
+
+    override fun onCreate() {
+        super.onCreate()
+    }
 
     override fun onHandleIntent(intent: Intent?) {
 
         val geofencingEvent = GeofencingEvent.fromIntent(intent)
+
         if (geofencingEvent.hasError()) {
             Log.e(TAG, "Geofence event hasError")
             return
