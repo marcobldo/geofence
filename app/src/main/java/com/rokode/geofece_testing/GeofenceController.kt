@@ -9,11 +9,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 
 
-class GeofenceController(name: String?) : IntentService("GeoFenceService") {
-
-    override fun onCreate() {
-        super.onCreate()
-    }
+class GeofenceController : IntentService("GeofenceController") {
 
     override fun onHandleIntent(intent: Intent?) {
 

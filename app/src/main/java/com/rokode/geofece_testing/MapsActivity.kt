@@ -110,10 +110,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
 
             //4. Define an intent for geofence transitions
             val pendientIntent : PendingIntent;
+            val serviceIntent = Intent(this,GeofenceController::class.java)
             // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
             // addGeofences() and removeGeofences().
             pendientIntent =
-                    PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+                    PendingIntent.getService(this, 0, serviceIntent, PendingIntent.FLAG_UPDATE_CURRENT )
 
 
             //5. Add geofences
