@@ -2,12 +2,14 @@ package com.rokode.geofece_testing
 
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.awareness.Awareness;
-import android.content.IntentFilter
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.BroadcastReceiver
@@ -15,12 +17,13 @@ import android.content.Context
 import android.support.v4.app.ActivityCompat
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
+import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import com.google.android.gms.awareness.fence.FenceState
-import com.google.android.gms.awareness.fence.FenceUpdateRequest
 import com.google.android.gms.awareness.state.HeadphoneState
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.api.GoogleApiClient
@@ -43,9 +46,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
     // The intent action which will be fired when your fence is triggered.
     val FENCE_RECEIVER_ACTION = BuildConfig.APPLICATION_ID + "FENCE_RECEIVER_ACTION"
     val MY_PERMISSION_LOCATION = 1
-    val FENCE_RADIO = 50
-    val FENCE_LAT = 20.6565374
-    val FENCE_LON = -103.3915136
+    val FENCE_RADIO = 10
+    val FENCE_LAT = 20.656663
+    val FENCE_LON = -103.391651
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,22 +59,34 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        createNotificationChannel()
+
+        startForegroundGeoFenceService()
+
         //init google apli client
         googleApiClient = GoogleApiClient.Builder(applicationContext)
             .addApi(Awareness.getSnapshotClient(applicationContext).api)
             .addApi(Awareness.getFenceClient(applicationContext).api)
+            .addApi(LocationServices.API)
             .addConnectionCallbacks(this)
             .addOnConnectionFailedListener(this)
             .enableAutoManage(this,this)
             .build()
 
-        val startBtn : Button = findViewById(R.id.startBtn)
-        startBtn.setOnClickListener { _ ->
-            //getHeadphoneState()
-            //startFence()
+
+    }
+
+    private fun startForegroundGeoFenceService() {
+        val serviceIntent = Intent(this, GeofenceController::class.java)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun startFence() {
         if(checkAndRequestLocationPermissions()){
             //permissions conceded!
@@ -168,6 +183,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
         super.onStop()
     }
 
+    @SuppressLint("MissingPermission")
     override fun onConnected(p0: Bundle?) {
         Log.i(TAG, "GoogleApiClient onConnected.")
         val fencePosition = LatLng(FENCE_LAT,FENCE_LON)
@@ -178,9 +194,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
         if(checkAndRequestLocationPermissions()){
             mMap.isIndoorEnabled = true
             mMap.isMyLocationEnabled = true
-            startFence()
+            drawCircle(fencePosition)
+            val startBtn : Button = findViewById(R.id.startBtn)
+            startBtn.setOnClickListener {
+                startFence()
+            }
         }
-        drawCircle(fencePosition)
+
     }
 
     override fun onConnectionSuspended(p0: Int) {
@@ -321,5 +341,25 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,  GoogleApiClient.C
             }
         }
 
+    }
+
+
+    private fun createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val channel1 = NotificationChannel(applicationContext.getString(R.string.app_name), "Actions", importance).apply {
+                description = "Geofence actions"
+            }
+            val channel2 = NotificationChannel("GeoFenceService", "Service", importance).apply {
+                description = "Service running"
+            }
+            // Register the channel with the system
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel1)
+            notificationManager.createNotificationChannel(channel2)
+        }
     }
 }
